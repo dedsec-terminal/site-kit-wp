@@ -1,5 +1,5 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..15a99f0 100644
+index 5ce57db..9dde1d0 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
 @@ -319,15 +319,15 @@ impl ReplacementTemplate {
@@ -30,7 +30,7 @@ index 5ce57db..15a99f0 100644
          }
  
          let mut persistent = None;
-@@ -351,7 +351,7 @@ impl ReplacementTemplate {
+@@ -351,12 +351,12 @@ impl ReplacementTemplate {
          for part in &self.parts {
              match part {
                  ReplacementPart::Literal(s) => {
@@ -39,6 +39,12 @@ index 5ce57db..15a99f0 100644
                  }
                  ReplacementPart::WholeMatch | ReplacementPart::Group(_) => {
                      if let Some(bytes) = get_match_bytes(part)? {
+                         append_with_case(
+-                            &mut result,
++                            result,
+                             bytes,
+                             persistent,
+                             &mut single,
 @@ -385,10 +385,11 @@ impl ReplacementTemplate {
              }
          }
