@@ -197,7 +197,12 @@ if [ "$CHECK_TESTS" = "1" ]; then
     wt="$WORK/wt-$(basename "$p" .patch)"
     [ -d "$wt" ] || continue
     step "checks on $(basename "$p")"
-    ( cd "$wt" && cargo fmt --all -- --check >/dev/null 2>&1 && echo "cargo fmt: OK" ) || echo "cargo fmt: FAILED"
+    if ( cd "$wt" && cargo fmt --all -- --check >/dev/null 2>&1 ); then
+      echo "cargo fmt: OK"
+    else
+      echo "cargo fmt: NEEDS-FORMATTING, rustfmt would change:"
+      ( cd "$wt" && cargo fmt --all && git --no-pager diff -U1 -- src/sed | head -80 )
+    fi
     ( cd "$wt" && cargo clippy --all-targets --all-features -- -D warnings > "$WORK/clippy.log" 2>&1 \
         && echo "cargo clippy: OK" ) || { echo "cargo clippy: FAILED"; tail -25 "$WORK/clippy.log"; }
     ( cd "$wt" && cargo test > "$WORK/test.log" 2>&1 && echo "cargo test: OK" ) \

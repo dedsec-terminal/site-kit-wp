@@ -1,5 +1,5 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..21894dd 100644
+index 5ce57db..877b4be 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
 @@ -319,121 +319,213 @@ impl ReplacementTemplate {
@@ -45,7 +45,7 @@ index 5ce57db..21894dd 100644
 +            return runtime_error(
 +                &command.location,
 +                format!(
-+                    "invalid reference \\\\{} on command's RHS",
++                    "invalid reference \\{} on command's RHS",
 +                    self.max_group_number
 +                ),
 +            );
@@ -83,7 +83,7 @@ index 5ce57db..21894dd 100644
 +                    | ReplacementPart::Lower
 +                    | ReplacementPart::UpperFirst
 +                    | ReplacementPart::LowerFirst
-+                    | ReplacementPart::End => unreachable!(),
++                    | ReplacementPart::End => panic!("has_case_conversion out of sync"),
                  }
              }
 -            return Ok(result);
@@ -208,7 +208,7 @@ index 5ce57db..21894dd 100644
 +                    | ReplacementPart::Lower
 +                    | ReplacementPart::UpperFirst
 +                    | ReplacementPart::LowerFirst
-+                    | ReplacementPart::End => unreachable!(),
++                    | ReplacementPart::End => panic!("has_case_conversion out of sync"),
 +                }
              }
 -            _ => Ok(None),
@@ -280,7 +280,7 @@ index 5ce57db..21894dd 100644
  /// Substitution command
  pub struct Substitution {
 diff --git a/src/sed/processor.rs b/src/sed/processor.rs
-index 9f7a553..51f2c53 100644
+index 9f7a553..f48af7d 100644
 --- a/src/sed/processor.rs
 +++ b/src/sed/processor.rs
 @@ -306,8 +306,7 @@ fn substitute(
@@ -293,7 +293,7 @@ index 9f7a553..51f2c53 100644
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -324,10 +323,8 @@ fn substitute(
+@@ -324,10 +323,7 @@ fn substitute(
                      let m = caps.get(0)?.unwrap();
                      result.extend_from_slice(&text[last_end..m.start()]);
  
@@ -301,12 +301,11 @@ index 9f7a553..51f2c53 100644
 -                        sub.replacement
 -                            .apply_captures(command, &caps, character_mode)?;
 -                    result.extend_from_slice(&replacement);
-+                    sub.replacement
-+                        .apply_captures_to(command, &caps, character_mode, &mut result)?;
++                    sub.replacement.apply_captures_to(command, &caps, character_mode, &mut result)?;
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -353,10 +350,8 @@ fn substitute(
+@@ -353,10 +349,8 @@ fn substitute(
                      result.extend_from_slice(&text[last_end..m.start()]);
  
                      if sub.occurrence == 0 || count == sub.occurrence {

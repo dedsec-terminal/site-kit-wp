@@ -1,5 +1,5 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..0b9f1d5 100644
+index 5ce57db..38a4606 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
 @@ -319,32 +319,66 @@ impl ReplacementTemplate {
@@ -30,7 +30,7 @@ index 5ce57db..0b9f1d5 100644
 +            return runtime_error(
 +                &command.location,
 +                format!(
-+                    "invalid reference \\\\{} on command's RHS",
++                    "invalid reference \\{} on command's RHS",
 +                    self.max_group_number
 +                ),
 +            );
@@ -70,7 +70,7 @@ index 5ce57db..0b9f1d5 100644
 +                    | ReplacementPart::Lower
 +                    | ReplacementPart::UpperFirst
 +                    | ReplacementPart::LowerFirst
-+                    | ReplacementPart::End => unreachable!(),
++                    | ReplacementPart::End => panic!("has_case_conversion out of sync"),
                  }
              }
              return Ok(result);
@@ -180,7 +180,7 @@ index 5ce57db..0b9f1d5 100644
 +                    | ReplacementPart::Lower
 +                    | ReplacementPart::UpperFirst
 +                    | ReplacementPart::LowerFirst
-+                    | ReplacementPart::End => unreachable!(),
++                    | ReplacementPart::End => panic!("has_case_conversion out of sync"),
 +                }
              }
 -            _ => Ok(None),
