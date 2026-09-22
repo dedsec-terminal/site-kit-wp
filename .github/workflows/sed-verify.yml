@@ -37,7 +37,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sed-verify-${{ github.ref }}-${{ github.event.inputs.patches }}
+  group: sed-verify-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -56,12 +56,16 @@ jobs:
           sudo apt-get install -y -qq valgrind
           valgrind --version
 
+      - name: Read request
+        run: |
+          chmod +x .github/sed-verify/request.sh
+          .github/sed-verify/request.sh \
+            '${{ github.event.inputs.patches }}' \
+            '${{ github.event.inputs.extra_shas }}' \
+            '${{ github.event.inputs.check_tests }}' \
+            '${{ github.event.inputs.scale }}'
+
       - name: Run verification
-        env:
-          PATCHES: ${{ github.event.inputs.patches }}
-          EXTRA_SHAS: ${{ github.event.inputs.extra_shas }}
-          CHECK_TESTS: ${{ github.event.inputs.check_tests || '1' }}
-          SCALE: ${{ github.event.inputs.scale || '100000' }}
         run: |
           set +e
           chmod +x .github/sed-verify/verify.sh
