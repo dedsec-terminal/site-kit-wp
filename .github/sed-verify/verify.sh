@@ -254,6 +254,8 @@ CASES
       verdict_fmt="FAIL"
       echo "cargo fmt: FAILED, rustfmt only changes below; the formatted patch is published separately:"
       ( cd "$wt" && cargo fmt --all && git --no-pager diff -U1 | head -60 )
+      ( cd "$wt" && git --no-pager diff -U1 ) > "$WORK/fmtonly-$name.diff"
+      echo "rustfmt only diff: $WORK/fmtonly-$name.diff"
       ( cd "$wt" && git add -A \
           && git -c user.name=verify -c user.email=verify@example.com commit --quiet -m "rustfmt" ) || true
       ( cd "$wt" && git --no-pager diff -U3 "$PR_HEAD" ) > "$WORK/formatted-$name.patch"

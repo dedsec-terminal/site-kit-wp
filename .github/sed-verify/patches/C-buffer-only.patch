@@ -1,5 +1,5 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..84095f6 100644
+index 5ce57db..8f07c81 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
 @@ -319,15 +319,15 @@ impl ReplacementTemplate {
@@ -75,7 +75,7 @@ index 5ce57db..84095f6 100644
 +    /// Render the template into `result`, so that substituted occurrences do not
 +    /// need a temporary buffer each.
 +    /// Returns an error if a backreference in the template was not matched by the RE.
-+    pub fn apply_captures_to(
++    pub(crate) fn apply_captures_to(
 +        &self,
 +        command: &Command,
 +        caps: &Captures<'_>,
@@ -105,7 +105,7 @@ index 5ce57db..84095f6 100644
 +    }
 +
 +    /// Render the template into `result` for a single `&` match.
-+    pub fn apply_match_to(
++    pub(crate) fn apply_match_to(
 +        &self,
 +        m: &Match<'_>,
 +        character_mode: CharacterMode,

@@ -37,4 +37,4 @@ jobs:
         if: always()
         run: |
           test -f "$HOME/runtime/report.txt" || echo "no report produced" > "$HOME/runtime/report.txt"
-          python3 .github/sed-verify/annotate.py "$HOME/runtime/report.txt" 60000 6000
+          python3 .github/sed-verify/annotate.py "$HOME/runtime/report.txt" 25000 2500

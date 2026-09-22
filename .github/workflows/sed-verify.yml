@@ -72,12 +72,12 @@ jobs:
           .github/sed-verify/verify.sh > /tmp/report.txt 2>&1
           status=$?
           echo "harness exit status: $status" >> /tmp/report.txt
-          python3 .github/sed-verify/annotate.py /tmp/report.txt
-          for f in "$HOME"/sedwork/formatted-*.patch; do
+          python3 .github/sed-verify/annotate.py /tmp/report.txt 25000 2500
+          for f in "$HOME"/sedwork/formatted-*.patch "$HOME"/sedwork/fmtonly-*.diff; do
             [ -f "$f" ] || continue
-            base="$(basename "$f" .patch)"
+            base="$(basename "$f" | sed 's/\.[a-z]*$//')"
             echo "---- publishing $base (annotations) ----"
-            python3 .github/sed-verify/annotate.py "$f" 60000 6000 "$base"
+            python3 .github/sed-verify/annotate.py "$f" 25000 2500 "$base"
           done
           echo "---- report tail (also available as annotations) ----"
           tail -c 4000 /tmp/report.txt
