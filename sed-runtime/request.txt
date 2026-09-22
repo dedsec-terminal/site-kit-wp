@@ -1,0 +1,6 @@
+# Request for the arena-sed-runtime workflow.
+# patches: patch files (relative to the repo root) applied on top of PR_HEAD.
+patches=.github/sed-verify/patches/B-zero-alloc.patch
+extra_shas=
+rounds=7
+scale=100000

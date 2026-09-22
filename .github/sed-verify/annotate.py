@@ -18,6 +18,7 @@ def escape(text: str) -> str:
 def main() -> None:
     path = sys.argv[1]
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 11000
+    chunk_size = int(sys.argv[3]) if len(sys.argv) > 3 else 1200
     try:
         with open(path, errors="replace") as handle:
             text = handle.read()
@@ -31,7 +32,7 @@ def main() -> None:
     current: list[str] = []
     size = 0
     for line in text.splitlines():
-        if size + len(line) + 1 > 1200:
+        if size + len(line) + 1 > chunk_size:
             chunks.append(current)
             current, size = [], 0
         current.append(line)

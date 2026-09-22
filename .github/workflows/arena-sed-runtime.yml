@@ -1,0 +1,40 @@
+name: arena-sed-runtime
+
+# Walltime companion to the `sed-verify` workflow: builds base/head/patched
+# revisions of uutils/sed PR #557 and times them on a GitHub runner, together
+# with a no-regex model of the same substitution loop.
+#
+# Trigger: push touching sed-runtime/** or this workflow file.
+# The report is published as check-run annotations (readable through the API)
+# because Actions logs are not reachable from the development environment.
+
+on:
+  push:
+    paths:
+      - "sed-runtime/**"
+      - ".github/workflows/arena-sed-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arena-sed-runtime-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show request
+        run: |
+          echo "request file:"; cat sed-runtime/request.txt || echo "(none)"
+      - name: Build and time
+        run: bash sed-runtime/run.sh
+      - name: Publish report
+        if: always()
+        run: |
+          test -f "$HOME/runtime/report.txt" || echo "no report produced" > "$HOME/runtime/report.txt"
+          python3 .github/sed-verify/annotate.py "$HOME/runtime/report.txt" 60000 6000
