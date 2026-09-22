@@ -29,6 +29,11 @@ PATCHES="${PATCHES:-}"
 if [ -f "$REQUEST" ]; then
   # shellcheck disable=SC1090
   . "$REQUEST"
+  # accept lower case keys as well (same spelling as the sed-verify request file)
+  [ -n "${patches:-}" ] && PATCHES="${PATCHES:-$patches}"
+  [ -n "${extra_shas:-}" ] && EXTRA_SHAS="${EXTRA_SHAS:-$extra_shas}"
+  [ -n "${rounds:-}" ] && ROUNDS="${ROUNDS:-$rounds}"
+  [ -n "${scale:-}" ] && SCALE="${SCALE:-$scale}"
 fi
 export CARGO_TARGET_DIR="$WORK/target"
 mkdir -p "$WORK"
@@ -79,7 +84,10 @@ fi
 git -C "$REPO" fetch --quiet --all --prune || true
 
 build_variant() { # $1=label $2=sha $3=patch-or-empty
-  local label="$1" sha="$2" patch="${3:-}" wt="$WORK/wt-$label"
+  local label="$1"
+  local sha="$2"
+  local patch="${3:-}"
+  local wt="$WORK/wt-$label"
   rm -rf "$wt"
   git -C "$REPO" worktree prune
   if ! git -C "$REPO" worktree add --quiet --force --detach "$wt" "$sha"; then
