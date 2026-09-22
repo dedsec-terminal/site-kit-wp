@@ -3,8 +3,9 @@ name: sed-verify
 # Temporary verification harness used while fixing uutils/sed PR #557.
 # It builds several revisions of uutils/sed and compares instruction counts
 # (valgrind/callgrind) on the benchmark workload that CodSpeed reports as
-# regressed. It is not part of the plugin build and can be removed once the
-# sed PR is green.
+# regressed. Results are committed back to the branch under .sedverify/ because
+# the Actions log download endpoint is not reachable from the agent sandbox.
+# This workflow can be removed once the sed PR is green.
 
 on:
   push:
@@ -14,21 +15,40 @@ on:
       - '.github/sed-verify/**'
       - '.github/workflows/sed-verify.yml'
   workflow_dispatch:
+    inputs:
+      patch:
+        description: 'Patch file applied on top of the PR head (path relative to the repo root)'
+        required: false
+        default: ''
+      extra_shas:
+        description: 'Space separated extra revisions of sed to measure'
+        required: false
+        default: ''
+      check_tests:
+        description: '1 to also run fmt/clippy/tests/GNU-sed diff on the patched tree'
+        required: false
+        default: '1'
+      scale:
+        description: 'Number of benchmark input lines'
+        required: false
+        default: '100000'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: sed-verify-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
     name: Measure sed PR 557
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -36,13 +56,46 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq valgrind
+          valgrind --version
 
       - name: Run verification
+        id: harness
+        continue-on-error: true
         env:
-          SCALE: '100000'
-          CHECK_TESTS: '1'
-          EXTRA_SHAS: ''
-          PATCH: ''
+          PATCH: ${{ inputs.patch }}
+          EXTRA_SHAS: ${{ inputs.extra_shas }}
+          CHECK_TESTS: ${{ inputs.check_tests || '1' }}
+          SCALE: ${{ inputs.scale || '100000' }}
         run: |
           chmod +x .github/sed-verify/verify.sh
-          .github/sed-verify/verify.sh || echo "::warning::harness exited non-zero, see log above"
+          .github/sed-verify/verify.sh 2>&1 | tee /tmp/sed-verify-report.txt
+          exit "${PIPESTATUS[0]}"
+
+      - name: Publish report to the branch
+        if: always()
+        env:
+          PATCH: ${{ inputs.patch }}
+          EXTRA_SHAS: ${{ inputs.extra_shas }}
+        run: |
+          set -euo pipefail
+          mkdir -p .sedverify
+          slug="$(printf '%s' "${PATCH:-}${EXTRA_SHAS:-}" | tr -c 'A-Za-z0-9._-' '_')"
+          report=".sedverify/report-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_NUMBER}-${slug:-baseline}.txt"
+          {
+            echo "run:       ${{ github.run_id }}"
+            echo "commit:    ${GITHUB_SHA}"
+            echo "patch:     ${PATCH:-<none>}"
+            echo "extra:     ${EXTRA_SHAS:-<none>}"
+            echo "harness exit code: ${{ steps.harness.outcome }}"
+            echo
+            cat /tmp/sed-verify-report.txt 2>/dev/null || echo "<no report captured>"
+          } > "$report"
+          git config user.name "sed-verify bot"
+          git config user.email "sed-verify@users.noreply.github.com"
+          git add "$report"
+          git commit -q -m "chore(sed-verify): report ${GITHUB_RUN_NUMBER} [skip ci]" || exit 0
+          for attempt in 1 2 3; do
+            git pull --rebase --quiet origin "arena/01a0c8e5-site-kit-wp" || true
+            git push origin "HEAD:arena/01a0c8e5-site-kit-wp" && break
+            sleep 5
+          done

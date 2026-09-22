@@ -1,0 +1,255 @@
+diff --git a/src/sed/command.rs b/src/sed/command.rs
+index 5ce57db..0b9f1d5 100644
+--- a/src/sed/command.rs
++++ b/src/sed/command.rs
+@@ -319,32 +319,66 @@ impl ReplacementTemplate {
+         }
+     }
+ 
+-    fn render_parts<'a, F>(
++    /// Apply the template to the given RE captures.
++    ///
++    /// Example:
++    /// let result = regex.replace_all(input, |caps: &Captures| {
++    ///    template.apply_captures(&command, caps, character_mode) });
++    /// Returns an error if a backreference in the template was not matched by the RE.
++    pub fn apply_captures(
+         &self,
++        command: &Command,
++        caps: &Captures<'_>,
+         character_mode: CharacterMode,
+-        mut get_match_bytes: F,
+-    ) -> UResult<Vec<u8>>
+-    where
+-        F: FnMut(&ReplacementPart) -> UResult<Option<&'a [u8]>>,
+-    {
++    ) -> UResult<Vec<u8>> {
++        // Invalid group numbers may end here through (unknown at compile time)
++        // reused REs.
++        if self.max_group_number > caps.len() - 1 {
++            return runtime_error(
++                &command.location,
++                format!(
++                    "invalid reference \\\\{} on command's RHS",
++                    self.max_group_number
++                ),
++            );
++        }
++
+         let mut result = Vec::new();
++
++        // Replacements without \U \L \u \l \E are rendered with a plain copy
++        // loop, unchanged from before the case escapes were added: it runs for
++        // every substituted occurrence, so keep it free of indirection.
+         if !self.has_case_conversion {
+             for part in &self.parts {
+                 match part {
+                     ReplacementPart::Literal(s) => result.extend_from_slice(s),
+-                    ReplacementPart::WholeMatch | ReplacementPart::Group(_) => {
+-                        if let Some(bytes) = get_match_bytes(part)? {
+-                            result.extend_from_slice(bytes);
+-                        }
++
++                    ReplacementPart::WholeMatch => {
++                        result.extend_from_slice(
++                            caps.get(0)?.map(|m| m.as_bytes()).unwrap_or_default(),
++                        );
+                     }
+-                    _ => {
+-                        panic!("has_case_conversion out of sync");
++
++                    ReplacementPart::Group(n) => {
++                        let i: usize = (*n).try_into().unwrap();
++                        result.extend_from_slice(
++                            caps.get(i)?.map(|m| m.as_bytes()).unwrap_or_default(),
++                        );
+                     }
++
++                    // No case directive in the template, so this is unreachable.
++                    ReplacementPart::Upper
++                    | ReplacementPart::Lower
++                    | ReplacementPart::UpperFirst
++                    | ReplacementPart::LowerFirst
++                    | ReplacementPart::End => unreachable!(),
+                 }
+             }
+             return Ok(result);
+         }
+ 
++        // GNU resets the case conversion state for every substituted
++        // occurrence, so a fresh \U/\L/\u/\l sequence starts here.
+         let mut persistent = None;
+         let mut single = None;
+ 
+@@ -353,32 +387,37 @@ impl ReplacementTemplate {
+                 ReplacementPart::Literal(s) => {
+                     append_with_case(&mut result, s, persistent, &mut single, character_mode);
+                 }
+-                ReplacementPart::WholeMatch | ReplacementPart::Group(_) => {
+-                    if let Some(bytes) = get_match_bytes(part)? {
+-                        append_with_case(
+-                            &mut result,
+-                            bytes,
+-                            persistent,
+-                            &mut single,
+-                            character_mode,
+-                        );
+-                    }
++
++                ReplacementPart::WholeMatch => {
++                    let bytes = caps.get(0)?.map(|m| m.as_bytes()).unwrap_or_default();
++                    append_with_case(&mut result, bytes, persistent, &mut single, character_mode);
++                }
++
++                ReplacementPart::Group(n) => {
++                    let i: usize = (*n).try_into().unwrap();
++                    let bytes = caps.get(i)?.map(|m| m.as_bytes()).unwrap_or_default();
++                    append_with_case(&mut result, bytes, persistent, &mut single, character_mode);
+                 }
++
+                 ReplacementPart::Upper => {
+                     persistent = Some(CaseConversion::Upper);
+                     single = None;
+                 }
++
+                 ReplacementPart::Lower => {
+                     persistent = Some(CaseConversion::Lower);
+                     single = None;
+                 }
++
+                 ReplacementPart::End => {
+                     persistent = None;
+                     single = None;
+                 }
++
+                 ReplacementPart::UpperFirst => {
+                     single = Some(CaseConversion::Upper);
+                 }
++
+                 ReplacementPart::LowerFirst => {
+                     single = Some(CaseConversion::Lower);
+                 }
+@@ -388,52 +427,83 @@ impl ReplacementTemplate {
+         Ok(result)
+     }
+ 
+-    /// Apply the template to the given RE captures.
+-    /// Example:
+-    /// let result = regex.replace_all(input, |caps: &Captures| {
+-    ///    template.apply_captures(&command, caps, character_mode) });
+-    /// Returns an error if a backreference in the template was not matched by the RE.
+-    pub fn apply_captures(
+-        &self,
+-        command: &Command,
+-        caps: &Captures<'_>,
+-        character_mode: CharacterMode,
+-    ) -> UResult<Vec<u8>> {
+-        if self.max_group_number > caps.len() - 1 {
+-            return runtime_error(
+-                &command.location,
+-                format!(
+-                    "invalid reference \\{} on command's RHS",
+-                    self.max_group_number
+-                ),
+-            );
+-        }
++    /// Apply the template to the given RE single match.
++    pub fn apply_match(&self, m: &Match<'_>, character_mode: CharacterMode) -> Vec<u8> {
++        let mut result = Vec::new();
+ 
+-        self.render_parts(character_mode, |part| match part {
+-            ReplacementPart::WholeMatch => {
+-                Ok(Some(caps.get(0)?.map(|m| m.as_bytes()).unwrap_or_default()))
+-            }
+-            ReplacementPart::Group(n) => {
+-                let i: usize = (*n).try_into().unwrap();
+-                Ok(Some(caps.get(i)?.map(|m| m.as_bytes()).unwrap_or_default()))
++        // Fast path: no case directives, plain copy of literals and `&`.
++        if !self.has_case_conversion {
++            for part in &self.parts {
++                match part {
++                    ReplacementPart::Literal(s) => result.extend_from_slice(s),
++
++                    ReplacementPart::WholeMatch => result.extend_from_slice(m.as_bytes()),
++
++                    ReplacementPart::Group(_) => {
++                        panic!("unexpected Regex group replacement")
++                    }
++
++                    ReplacementPart::Upper
++                    | ReplacementPart::Lower
++                    | ReplacementPart::UpperFirst
++                    | ReplacementPart::LowerFirst
++                    | ReplacementPart::End => unreachable!(),
++                }
+             }
+-            _ => Ok(None),
+-        })
+-    }
++            return result;
++        }
+ 
+-    /// Apply the template to the given RE single match.
+-    pub fn apply_match(&self, m: &Match<'_>, character_mode: CharacterMode) -> Vec<u8> {
+-        self.render_parts(character_mode, |part| match part {
+-            ReplacementPart::WholeMatch => Ok(Some(m.as_bytes())),
+-            ReplacementPart::Group(_) => {
+-                panic!("unexpected Regex group replacement")
++        let mut persistent = None;
++        let mut single = None;
++
++        for part in &self.parts {
++            match part {
++                ReplacementPart::Literal(s) => {
++                    append_with_case(&mut result, s, persistent, &mut single, character_mode);
++                }
++
++                ReplacementPart::WholeMatch => {
++                    append_with_case(
++                        &mut result,
++                        m.as_bytes(),
++                        persistent,
++                        &mut single,
++                        character_mode,
++                    );
++                }
++
++                ReplacementPart::Group(_) => {
++                    panic!("unexpected Regex group replacement")
++                }
++
++                ReplacementPart::Upper => {
++                    persistent = Some(CaseConversion::Upper);
++                    single = None;
++                }
++
++                ReplacementPart::Lower => {
++                    persistent = Some(CaseConversion::Lower);
++                    single = None;
++                }
++
++                ReplacementPart::End => {
++                    persistent = None;
++                    single = None;
++                }
++
++                ReplacementPart::UpperFirst => {
++                    single = Some(CaseConversion::Upper);
++                }
++
++                ReplacementPart::LowerFirst => {
++                    single = Some(CaseConversion::Lower);
++                }
+             }
+-            _ => Ok(None),
+-        })
+-        .expect("infallible")
++        }
++
++        result
+     }
+ }
+-
+ #[derive(Debug, Default)]
+ /// Substitution command
+ pub struct Substitution {
