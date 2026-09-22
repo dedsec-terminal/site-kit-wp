@@ -1,8 +1,8 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..4453f63 100644
+index 5ce57db..d8d381c 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
-@@ -319,121 +319,207 @@ impl ReplacementTemplate {
+@@ -319,121 +319,213 @@ impl ReplacementTemplate {
          }
      }
  
@@ -233,7 +233,13 @@ index 5ce57db..4453f63 100644
 +                }
 +
 +                ReplacementPart::WholeMatch => {
-+                    append_with_case(result, m.as_bytes(), persistent, &mut single, character_mode);
++                    append_with_case(
++                        result,
++                        m.as_bytes(),
++                        persistent,
++                        &mut single,
++                        character_mode,
++                    );
 +                }
 +
 +                ReplacementPart::Group(_) => {
