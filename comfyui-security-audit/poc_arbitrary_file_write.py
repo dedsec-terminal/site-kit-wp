@@ -4,6 +4,8 @@ PoC — ComfyUI arbitrary file write via SaveImageDataSetToFolder /
 SaveImageTextDataSetToFolder (overwrite mode) filename_prefix traversal.
 
 Vulnerability class: CWE-22 (path traversal) / CWE-73 (external control of
+file name or path). NOTE: the --mode text variant uses SaveImageTextDataSetToFolder, which is
+NOT deprecated (fully supported built-in); the PNG-only node IS deprecated but still executes.
 file name or path). Verified against ComfyUI v0.37.0 (master b33e2b5).
 
 For AUTHORIZED security research only (your own instance / CTF / approved
