@@ -3,8 +3,8 @@ name: sed-verify
 # Temporary verification harness used while fixing uutils/sed PR #557.
 # It builds several revisions of uutils/sed and compares instruction counts
 # (valgrind/callgrind) on the benchmark workload that CodSpeed reports as
-# regressed. Results are committed back to the branch under .sedverify/ because
-# the Actions log download endpoint is not reachable from the agent sandbox.
+# regressed. Results are emitted as check-run annotations because the Actions
+# log-download endpoint is not reachable from the agent sandbox.
 # This workflow can be removed once the sed PR is green.
 
 on:
@@ -16,8 +16,8 @@ on:
       - '.github/workflows/sed-verify.yml'
   workflow_dispatch:
     inputs:
-      patch:
-        description: 'Patch file applied on top of the PR head (path relative to the repo root)'
+      patches:
+        description: 'Space separated patch files, relative to the repo root, applied on top of the PR head'
         required: false
         default: ''
       extra_shas:
@@ -25,7 +25,7 @@ on:
         required: false
         default: ''
       check_tests:
-        description: '1 to also run fmt/clippy/tests/GNU-sed diff on the patched tree'
+        description: '1 to also run fmt/clippy/tests/GNU-sed diff on each patched tree'
         required: false
         default: '1'
       scale:
@@ -34,10 +34,10 @@ on:
         default: '100000'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: sed-verify-${{ github.ref }}
+  group: sed-verify-${{ github.ref }}-${{ github.event.inputs.patches }}
   cancel-in-progress: false
 
 jobs:
@@ -47,8 +47,6 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -59,43 +57,18 @@ jobs:
           valgrind --version
 
       - name: Run verification
-        id: harness
-        continue-on-error: true
         env:
-          PATCH: ${{ inputs.patch }}
-          EXTRA_SHAS: ${{ inputs.extra_shas }}
-          CHECK_TESTS: ${{ inputs.check_tests || '1' }}
-          SCALE: ${{ inputs.scale || '100000' }}
+          PATCHES: ${{ github.event.inputs.patches }}
+          EXTRA_SHAS: ${{ github.event.inputs.extra_shas }}
+          CHECK_TESTS: ${{ github.event.inputs.check_tests || '1' }}
+          SCALE: ${{ github.event.inputs.scale || '100000' }}
         run: |
+          set +e
           chmod +x .github/sed-verify/verify.sh
-          .github/sed-verify/verify.sh 2>&1 | tee /tmp/sed-verify-report.txt
-          exit "${PIPESTATUS[0]}"
-
-      - name: Publish report to the branch
-        if: always()
-        env:
-          PATCH: ${{ inputs.patch }}
-          EXTRA_SHAS: ${{ inputs.extra_shas }}
-        run: |
-          set -euo pipefail
-          mkdir -p .sedverify
-          slug="$(printf '%s' "${PATCH:-}${EXTRA_SHAS:-}" | tr -c 'A-Za-z0-9._-' '_')"
-          report=".sedverify/report-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_NUMBER}-${slug:-baseline}.txt"
-          {
-            echo "run:       ${{ github.run_id }}"
-            echo "commit:    ${GITHUB_SHA}"
-            echo "patch:     ${PATCH:-<none>}"
-            echo "extra:     ${EXTRA_SHAS:-<none>}"
-            echo "harness exit code: ${{ steps.harness.outcome }}"
-            echo
-            cat /tmp/sed-verify-report.txt 2>/dev/null || echo "<no report captured>"
-          } > "$report"
-          git config user.name "sed-verify bot"
-          git config user.email "sed-verify@users.noreply.github.com"
-          git add "$report"
-          git commit -q -m "chore(sed-verify): report ${GITHUB_RUN_NUMBER} [skip ci]" || exit 0
-          for attempt in 1 2 3; do
-            git pull --rebase --quiet origin "arena/01a0c8e5-site-kit-wp" || true
-            git push origin "HEAD:arena/01a0c8e5-site-kit-wp" && break
-            sleep 5
-          done
+          .github/sed-verify/verify.sh > /tmp/report.txt 2>&1
+          status=$?
+          echo "harness exit status: $status" >> /tmp/report.txt
+          python3 .github/sed-verify/annotate.py /tmp/report.txt
+          echo "---- report tail (also available as annotations) ----"
+          tail -c 4000 /tmp/report.txt
+          exit 0
