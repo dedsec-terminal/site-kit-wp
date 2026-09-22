@@ -74,7 +74,10 @@ CASE_SCRIPT='s/\([0-9]\)\([0-9]*\)/\u\1\L\2/g'
 step "GNU sed reference output"
 GNUC="$(command -v sed || true)"
 gnu_ref() { # $1=script $2=tag -> "rc sha"
-  local script="$1" tag="$2" out="$WORK/gnu-$tag.bin" rc sha
+  local script="$1"
+  local tag="$2"
+  local out="$WORK/gnu-$tag.bin"
+  local rc sha
   if [ -z "$GNUC" ]; then echo "n/a n/a"; return; fi
   "$GNUC" "$script" "$DATA" > "$out" 2>/dev/null
   rc=$?
@@ -168,10 +171,10 @@ printf "%-22s %18s %18s  %s\n" variant "number_fix(Ir)" "case_conv(Ir)" "output 
 for label in "${LABELS[@]}"; do
   read -r nf nf_rc nf_sha < <(measure "$label" "$NUM_FIX_SCRIPT" nf)
   read -r cc cc_rc cc_sha < <(measure "$label" "$CASE_SCRIPT" cc)
-  note="ok"
+  note="ok (matches GNU sed)"
   [ "$nf_rc" = "$GNU_NF_RC" ] || note="number_fix exit $nf_rc"
   [ "$cc_rc" = "$GNU_CC_RC" ] || note="$note; case_conv exit $cc_rc"
-  [ "$nf_sha" = "$GNU_NF_SHA" ] || note="$note; number_fix OUTPUT!=GNU"
+  [ "$nf_sha" = "$GNU_NF_SHA" ] || note="number_fix OUTPUT!=GNU"
   [ "$cc_sha" = "$GNU_CC_SHA" ] || note="$note; case_conv OUTPUT!=GNU"
   printf "%-22s %18s %18s  %s\n" "$label" "$nf" "$cc" "$note"
   echo "$label $nf $cc $note" >> "$WORK/results.txt"
