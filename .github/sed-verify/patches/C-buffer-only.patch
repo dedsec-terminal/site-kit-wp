@@ -1,5 +1,5 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..9dde1d0 100644
+index 5ce57db..84095f6 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
 @@ -319,15 +319,15 @@ impl ReplacementTemplate {
@@ -30,7 +30,7 @@ index 5ce57db..9dde1d0 100644
          }
  
          let mut persistent = None;
-@@ -351,12 +351,12 @@ impl ReplacementTemplate {
+@@ -351,17 +351,11 @@ impl ReplacementTemplate {
          for part in &self.parts {
              match part {
                  ReplacementPart::Literal(s) => {
@@ -39,13 +39,18 @@ index 5ce57db..9dde1d0 100644
                  }
                  ReplacementPart::WholeMatch | ReplacementPart::Group(_) => {
                      if let Some(bytes) = get_match_bytes(part)? {
-                         append_with_case(
+-                        append_with_case(
 -                            &mut result,
-+                            result,
-                             bytes,
-                             persistent,
-                             &mut single,
-@@ -385,10 +385,11 @@ impl ReplacementTemplate {
+-                            bytes,
+-                            persistent,
+-                            &mut single,
+-                            character_mode,
+-                        );
++                        append_with_case(result, bytes, persistent, &mut single, character_mode);
+                     }
+                 }
+                 ReplacementPart::Upper => {
+@@ -385,10 +379,11 @@ impl ReplacementTemplate {
              }
          }
  
@@ -58,7 +63,7 @@ index 5ce57db..9dde1d0 100644
      /// Example:
      /// let result = regex.replace_all(input, |caps: &Captures| {
      ///    template.apply_captures(&command, caps, character_mode) });
-@@ -399,6 +400,21 @@ impl ReplacementTemplate {
+@@ -399,6 +394,21 @@ impl ReplacementTemplate {
          caps: &Captures<'_>,
          character_mode: CharacterMode,
      ) -> UResult<Vec<u8>> {
@@ -80,7 +85,7 @@ index 5ce57db..9dde1d0 100644
          if self.max_group_number > caps.len() - 1 {
              return runtime_error(
                  &command.location,
-@@ -409,7 +425,7 @@ impl ReplacementTemplate {
+@@ -409,7 +419,7 @@ impl ReplacementTemplate {
              );
          }
  
@@ -89,7 +94,7 @@ index 5ce57db..9dde1d0 100644
              ReplacementPart::WholeMatch => {
                  Ok(Some(caps.get(0)?.map(|m| m.as_bytes()).unwrap_or_default()))
              }
-@@ -423,7 +439,19 @@ impl ReplacementTemplate {
+@@ -423,14 +433,26 @@ impl ReplacementTemplate {
  
      /// Apply the template to the given RE single match.
      pub fn apply_match(&self, m: &Match<'_>, character_mode: CharacterMode) -> Vec<u8> {
@@ -110,21 +115,30 @@ index 5ce57db..9dde1d0 100644
              ReplacementPart::WholeMatch => Ok(Some(m.as_bytes())),
              ReplacementPart::Group(_) => {
                  panic!("unexpected Regex group replacement")
+             }
+             _ => Ok(None),
+         })
+-        .expect("infallible")
++        .expect("infallible");
+     }
+ }
+ 
 diff --git a/src/sed/processor.rs b/src/sed/processor.rs
-index 9f7a553..f48af7d 100644
+index 9f7a553..367de2d 100644
 --- a/src/sed/processor.rs
 +++ b/src/sed/processor.rs
-@@ -306,8 +306,7 @@ fn substitute(
+@@ -306,8 +306,8 @@ fn substitute(
                  Ok(Some(m)) => {
                      result.extend_from_slice(&text[last_end..m.start()]);
  
 -                    let replacement = sub.replacement.apply_match(&m, character_mode);
 -                    result.extend_from_slice(&replacement);
-+                    sub.replacement.apply_match_to(&m, character_mode, &mut result);
++                    sub.replacement
++                        .apply_match_to(&m, character_mode, &mut result);
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -324,10 +323,7 @@ fn substitute(
+@@ -324,10 +324,12 @@ fn substitute(
                      let m = caps.get(0)?.unwrap();
                      result.extend_from_slice(&text[last_end..m.start()]);
  
@@ -132,11 +146,16 @@ index 9f7a553..f48af7d 100644
 -                        sub.replacement
 -                            .apply_captures(command, &caps, character_mode)?;
 -                    result.extend_from_slice(&replacement);
-+                    sub.replacement.apply_captures_to(command, &caps, character_mode, &mut result)?;
++                    sub.replacement.apply_captures_to(
++                        command,
++                        &caps,
++                        character_mode,
++                        &mut result,
++                    )?;
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -353,10 +349,8 @@ fn substitute(
+@@ -353,10 +355,12 @@ fn substitute(
                      result.extend_from_slice(&text[last_end..m.start()]);
  
                      if sub.occurrence == 0 || count == sub.occurrence {
@@ -144,8 +163,12 @@ index 9f7a553..f48af7d 100644
 -                            sub.replacement
 -                                .apply_captures(command, &caps, character_mode)?;
 -                        result.extend_from_slice(&replacement);
-+                        sub.replacement
-+                            .apply_captures_to(command, &caps, character_mode, &mut result)?;
++                        sub.replacement.apply_captures_to(
++                            command,
++                            &caps,
++                            character_mode,
++                            &mut result,
++                        )?;
                          replaced = true;
                      } else {
                          // Not the target match — leave the match unchanged.

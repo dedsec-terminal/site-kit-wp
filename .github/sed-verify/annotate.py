@@ -19,6 +19,7 @@ def main() -> None:
     path = sys.argv[1]
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 11000
     chunk_size = int(sys.argv[3]) if len(sys.argv) > 3 else 1200
+    prefix = sys.argv[4] if len(sys.argv) > 4 else "sed-verify"
     try:
         with open(path, errors="replace") as handle:
             text = handle.read()
@@ -41,7 +42,7 @@ def main() -> None:
         chunks.append(current)
 
     for index, chunk in enumerate(chunks[:10]):
-        print(f"::error title=sed-verify-{index:02d}::{escape(chr(10).join(chunk))}")
+        print(f"::error title={prefix}-{index:02d}::{escape(chr(10).join(chunk))}")
 
 
 main()

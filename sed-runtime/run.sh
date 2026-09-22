@@ -26,14 +26,25 @@ ROUNDS="${ROUNDS:-7}"
 SCALE="${SCALE:-100000}"
 EXTRA_SHAS="${EXTRA_SHAS:-}"
 PATCHES="${PATCHES:-}"
+read_request() { # key=value lines, lower or upper case, "#" comments ignored
+  local file="$1" line key value
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) echo "request: ignoring '$line'"; continue ;; esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    value="${value%\"}" ; value="${value#\"}"
+    case "$key" in
+      patches|PATCHES) PATCHES="$value" ;;
+      extra_shas|EXTRA_SHAS) EXTRA_SHAS="$value" ;;
+      rounds|ROUNDS) ROUNDS="$value" ;;
+      scale|SCALE) SCALE="$value" ;;
+      *) echo "request: ignoring unknown key '$key'" ;;
+    esac
+  done < "$file"
+}
 if [ -f "$REQUEST" ]; then
-  # shellcheck disable=SC1090
-  . "$REQUEST"
-  # accept lower case keys as well (same spelling as the sed-verify request file)
-  [ -n "${patches:-}" ] && PATCHES="${PATCHES:-$patches}"
-  [ -n "${extra_shas:-}" ] && EXTRA_SHAS="${EXTRA_SHAS:-$extra_shas}"
-  [ -n "${rounds:-}" ] && ROUNDS="${ROUNDS:-$rounds}"
-  [ -n "${scale:-}" ] && SCALE="${SCALE:-$scale}"
+  read_request "$REQUEST"
 fi
 export CARGO_TARGET_DIR="$WORK/target"
 mkdir -p "$WORK"

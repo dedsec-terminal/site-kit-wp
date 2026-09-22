@@ -252,8 +252,12 @@ CASES
     verdict_fmt="OK"
     if ! ( cd "$wt" && cargo fmt --all -- --check >/dev/null 2>&1 ); then
       verdict_fmt="FAIL"
-      echo "cargo fmt: FAILED, rustfmt wants (patch is already committed, so this is rustfmt only):"
+      echo "cargo fmt: FAILED, rustfmt only changes below; the formatted patch is published separately:"
       ( cd "$wt" && cargo fmt --all && git --no-pager diff -U1 | head -60 )
+      ( cd "$wt" && git add -A \
+          && git -c user.name=verify -c user.email=verify@example.com commit --quiet -m "rustfmt" ) || true
+      ( cd "$wt" && git --no-pager diff -U3 "$PR_HEAD" ) > "$WORK/formatted-$name.patch"
+      echo "formatted patch: $WORK/formatted-$name.patch ($(wc -c < "$WORK/formatted-$name.patch") bytes)"
     else
       echo "cargo fmt: OK"
     fi

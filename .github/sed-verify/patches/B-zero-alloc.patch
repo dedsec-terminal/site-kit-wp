@@ -1,8 +1,8 @@
 diff --git a/src/sed/command.rs b/src/sed/command.rs
-index 5ce57db..877b4be 100644
+index 5ce57db..4453f63 100644
 --- a/src/sed/command.rs
 +++ b/src/sed/command.rs
-@@ -319,121 +319,213 @@ impl ReplacementTemplate {
+@@ -319,121 +319,207 @@ impl ReplacementTemplate {
          }
      }
  
@@ -32,7 +32,7 @@ index 5ce57db..877b4be 100644
 +    /// Render the template's parts into `result`, avoiding a temporary buffer
 +    /// for every substituted occurrence.
 +    /// Returns an error if a backreference in the template was not matched by the RE.
-+    pub fn apply_captures_to(
++    pub(crate) fn apply_captures_to(
 +        &self,
 +        command: &Command,
 +        caps: &Captures<'_>,
@@ -167,7 +167,7 @@ index 5ce57db..877b4be 100644
 +
 +    /// Render the template's parts into `result` for a single `&` match,
 +    /// avoiding a temporary buffer for every substituted occurrence.
-+    pub fn apply_match_to(
++    pub(crate) fn apply_match_to(
          &self,
 -        command: &Command,
 -        caps: &Captures<'_>,
@@ -233,13 +233,7 @@ index 5ce57db..877b4be 100644
 +                }
 +
 +                ReplacementPart::WholeMatch => {
-+                    append_with_case(
-+                        result,
-+                        m.as_bytes(),
-+                        persistent,
-+                        &mut single,
-+                        character_mode,
-+                    );
++                    append_with_case(result, m.as_bytes(), persistent, &mut single, character_mode);
 +                }
 +
 +                ReplacementPart::Group(_) => {
@@ -280,20 +274,21 @@ index 5ce57db..877b4be 100644
  /// Substitution command
  pub struct Substitution {
 diff --git a/src/sed/processor.rs b/src/sed/processor.rs
-index 9f7a553..f48af7d 100644
+index 9f7a553..367de2d 100644
 --- a/src/sed/processor.rs
 +++ b/src/sed/processor.rs
-@@ -306,8 +306,7 @@ fn substitute(
+@@ -306,8 +306,8 @@ fn substitute(
                  Ok(Some(m)) => {
                      result.extend_from_slice(&text[last_end..m.start()]);
  
 -                    let replacement = sub.replacement.apply_match(&m, character_mode);
 -                    result.extend_from_slice(&replacement);
-+                    sub.replacement.apply_match_to(&m, character_mode, &mut result);
++                    sub.replacement
++                        .apply_match_to(&m, character_mode, &mut result);
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -324,10 +323,7 @@ fn substitute(
+@@ -324,10 +324,12 @@ fn substitute(
                      let m = caps.get(0)?.unwrap();
                      result.extend_from_slice(&text[last_end..m.start()]);
  
@@ -301,11 +296,16 @@ index 9f7a553..f48af7d 100644
 -                        sub.replacement
 -                            .apply_captures(command, &caps, character_mode)?;
 -                    result.extend_from_slice(&replacement);
-+                    sub.replacement.apply_captures_to(command, &caps, character_mode, &mut result)?;
++                    sub.replacement.apply_captures_to(
++                        command,
++                        &caps,
++                        character_mode,
++                        &mut result,
++                    )?;
                      replaced = true;
                      last_end = m.end();
                      Ok(())
-@@ -353,10 +349,8 @@ fn substitute(
+@@ -353,10 +355,12 @@ fn substitute(
                      result.extend_from_slice(&text[last_end..m.start()]);
  
                      if sub.occurrence == 0 || count == sub.occurrence {
@@ -313,8 +313,12 @@ index 9f7a553..f48af7d 100644
 -                            sub.replacement
 -                                .apply_captures(command, &caps, character_mode)?;
 -                        result.extend_from_slice(&replacement);
-+                        sub.replacement
-+                            .apply_captures_to(command, &caps, character_mode, &mut result)?;
++                        sub.replacement.apply_captures_to(
++                            command,
++                            &caps,
++                            character_mode,
++                            &mut result,
++                        )?;
                          replaced = true;
                      } else {
                          // Not the target match — leave the match unchanged.
