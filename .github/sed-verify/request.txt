@@ -1,5 +1,5 @@
 # Request for the sed-verify workflow (pushes touching .github/sed-verify/** trigger a run).
 patches=.github/sed-verify/patches/A-no-closure.patch .github/sed-verify/patches/B-zero-alloc.patch .github/sed-verify/patches/C-buffer-only.patch
-extra_shas=
+extra_shas=486283b 57a48a3
 check_tests=1
 scale=100000
