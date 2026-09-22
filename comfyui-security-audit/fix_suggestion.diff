@@ -1,0 +1,17 @@
+diff --git a/comfy_extras/nodes_dataset.py b/comfy_extras/nodes_dataset.py
+index 361328b..f498907 100644
+--- a/comfy_extras/nodes_dataset.py
++++ b/comfy_extras/nodes_dataset.py
+@@ -438,6 +438,12 @@ def save_images_to_folder(image_list, output_dir, prefix="image", overwrite=True
+             _, _, counter, _, resolved_prefix = folder_paths.get_save_image_path(prefix, output_dir)
+             filename = f"{resolved_prefix}_{counter:05}_{idx:05d}.png"
+         filepath = os.path.join(output_dir, filename)
++        # Prevent path traversal: filename_prefix must not escape output_dir
++        # (overwrite mode bypassed get_save_image_path()'s containment check).
++        if not folder_paths.is_within_directory(output_dir, filepath):
++            raise ValueError(
++                f"Invalid filename_prefix {prefix!r}: resolves outside of {output_dir}"
++            )
+         img.save(filepath)
+         saved_files.append(filename)
+ 

